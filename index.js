@@ -9,13 +9,15 @@ require('./db');
 require('./models/User');
 //
 const authRoutes = require('./routes/authRoutes');
+const requireToken = require('./Middlewares/AuthTokenRequired');
 //
 app.use(bodyParser.json());
 app.use(authRoutes);
 //
 
-app.get('/', (req,res) =>{
-    res.send("Hello World");
+app.get('/',requireToken, (req,res) =>{
+    console.log(req.user);
+    res.send(req.user);
 })
 //
 
