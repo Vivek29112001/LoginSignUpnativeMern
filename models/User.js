@@ -1,36 +1,41 @@
-const mongoose =require('mongoose');
-const bcrypt = require('bcrypt');
-
+const mongoose = require("mongoose");
+const bcrypt = require("bcrypt");
 const userSchema = new mongoose.Schema({
-    name:{
+    name: {
         type: String,
-        require: true
+        required: true
     },
-    email:{
+    email: {
         type: String,
         required: true,
         unique: true,
     },
-    password:{
+    password: {
+        type: String,
+        required: true
+
+    },
+    dob: {
         type: String,
         required: true
     },
-    dob:{
+    address: {
         type: String,
         required: true
-    },
+    }
+
 })
 
-// const User = mongoose.model('User', userSchema);
-userSchema.pre('save', async function (next){
+userSchema.pre('save', async function (next) {
     const user = this;
-    console.log("Just before saving & before hashing", user.password);
-    if(!user.isModified('password')){
+    console.log("Just before saving before hashing  ", user.password);
+    if (!user.isModified('password')) {
         return next();
     }
     user.password = await bcrypt.hash(user.password, 8);
-    console.log("Just before saving & after hashin", user.password);
+    console.log("Just before saving & after hashing", user.password);
     next();
-});
+})
+
 
 mongoose.model("User", userSchema);

@@ -1,75 +1,139 @@
 const express = require('express');
+
 const router = express.Router();
 const mongoose = require('mongoose');
 const User = mongoose.model("User");
 const jwt = require('jsonwebtoken');
-const bcrypt = require('bcrypt');
-
-//
+// 
 require('dotenv').config();
+// 
+const bcrypt = require('bcrypt');
+const nodemailer = require("nodemailer");
+
+
+// nodemailer
+async function mailer(recieveremail, code) {
+
+
+    let transporter = nodemailer.createTransport({
+        host: "smtp.gmail.com",
+        port: 587,
+
+        secure: false, // true for 465, false for other ports
+        requireTLS: true,
+        auth: {
+            user: "vivek15292001@gmail.com", // generated ethereal user
+            pass: "zyihksbadkcvivug", // generated ethereal password
+          },
+    });
+
+    // send mail with defined transport object
+    let info = await transporter.sendMail({
+        from: 'vivek15292001@gmail.com', // sender address
+        to: `${recieveremail}`, // list of receivers
+        subject: "Signup Verification", // Subject line
+        text: `Your Verification Code is ${code}`, // plain text body
+        html: `<b>Your Verification Code is ${code}</b>`, // html body
+    });
+
+    console.log("Message sent: %s", info.messageId);
+
+    console.log("Preview URL: %s", nodemailer.getTestMessageUrl(info));
+
+}
+
 //
 
-router.post('/signup', (req,res) => {
-    // res.send('This is signup page');
-    console.log('send by clint - ', req.body);
-    const{name,email,password,dob } = req.body;
-    if (!email || !password || !name || !dob) {
-        return res.status(422).send({error: "Please fill all the fields "});
+router.post('/signup', async (req, res) => {
+    // console.log('sent by client - ', req.body);
+    const { name, email, password, dob, address } = req.body;
+
+
+    const user = new User({
+        name,
+        email,
+        password,
+        dob,
+        address
+    })
+
+    try {
+        await user.save();
+        const token = jwt.sign({ _id: user._id }, process.env.JWT_SECRET);
+        res.send({ message: "User Registered Successfully", token });
+    }
+    catch (err) {
+        console.log(err);
     }
 
-    User.findOne({email:email})
-        .then( async (savedUser) => {
-                if(savedUser){
-                    return res.status(422).send({error: "Invalid Credential" });
-                }
-                const user = new User({
-                    name,
-                    email,
-                    password,
-                    dob
-                })
-
-                try{
-                    await user.save();
-                    // res.send({ message: " User saved successfully"});
-                    const token = jwt.sign({ _id: user._id }, process.env.JWT_SECRET);
-                    res.send({token});
-                }
-                catch (err) {
-                    console.log('db error', err);
-                    return res.status(422).send({ error: err.message });
-                }
-            }
-        )
 })
 
 
-router.post('/signin', async (req, res) => {
-    const {email , password} =req.body;
-    if(!email || !password) {
-        return res.status(422).json({error: " Please add Email and Password "});
-    }
-    const savedUser = await User.findOne({ email: email})
-
-    if (!savedUser){
-        return res.status(422).json({error:"Invalid Credentials" });
+router.post('/verify', (req, res) => {
+    console.log('sent by client - ', req.body);
+    const { name, email, password, dob, address } = req.body;
+    if (!name || !email || !password || !dob || !address) {
+        return res.status(422).json({ error: "Please add all the fields" });
     }
 
-    try{
-        bcrypt.compare(password, savedUser.password, (err, result) =>{
-            if(result){
-                console.log("Password Match");
-                const token = jwt.sign({_id: savedUser._id }, process.env.JWT_SECRET);
-                res.send({token});
+
+    User.findOne({ email: email })
+        .then(async (savedUser) => {
+            if (savedUser) {
+                return res.status(422).json({ error: "Invalid Credentials" });
             }
-            else{
+            try {
+
+                let VerificationCode = Math.floor(100000 + Math.random() * 900000);
+                let user = [
+                    {
+                        name,
+                        email,
+                        password,
+                        dob,
+                        address,
+                        VerificationCode
+                    }
+                ]
+                await mailer(email, VerificationCode);
+                res.send({ message: "Verification Code Sent to your Email", udata: user });
+            }
+            catch (err) {
+                console.log(err);
+            }
+        })
+
+
+})
+
+
+
+router.post('/signin', async (req, res) => {
+    const { email, password } = req.body;
+    if (!email || !password) {
+        return res.status(422).json({ error: "Please add email or password" });
+    }
+    const savedUser = await User.findOne({ email: email })
+
+    if (!savedUser) {
+        return res.status(422).json({ error: "Invalid Credentials" });
+    }
+
+    try {
+        bcrypt.compare(password, savedUser.password, (err, result) => {
+            if (result) {
+                console.log("Password matched");
+                const token = jwt.sign({ _id: savedUser._id }, process.env.JWT_SECRET);
+                res.send({ token });
+            }
+            else {
                 console.log('Password does not match');
-                return res.status(422).json({ error: " Invalid Credentials"});
+                return res.status(422).json({ error: "Invalid Credentials" });
             }
         })
     }
-    catch(err){
-
+    catch (err) {
+        console.log(err);
     }
 })
 
